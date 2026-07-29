@@ -182,6 +182,19 @@
   .about-card li b{color:var(--text)}
   .check{color:var(--accent-2);font-weight:800}
 
+  /* ---------- EXPERIENCE ---------- */
+  #experience{background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .exp-band{display:grid;grid-template-columns:1.3fr .9fr;gap:48px;align-items:center}
+  @media(max-width:860px){.exp-band{grid-template-columns:1fr}}
+  .exp-copy p{color:var(--muted);margin-top:14px}
+  .exp-stats{display:grid;gap:18px}
+  .exp-stat{
+    background:var(--bg-3);border:1px solid var(--line);border-radius:14px;
+    padding:20px 24px;display:flex;align-items:baseline;gap:14px;
+  }
+  .exp-stat b{font-size:2.2rem;font-weight:800;color:var(--accent-2)}
+  .exp-stat span{color:var(--muted);font-size:.92rem}
+
   /* ---------- SOCIAL ---------- */
   #social{background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .social-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
@@ -257,6 +270,7 @@
     <div class="nav-links">
       <a href="#inventory">Inventory</a>
       <a href="#about">Why Me</a>
+      <a href="#experience">Experience</a>
       <a href="#social">Social</a>
       <a href="#sold">Sold Gallery</a>
       <a href="#contact">Contact</a>
@@ -441,6 +455,33 @@
         <li><span class="check">✓</span><span><b>Backed by Gary Crossley Ford.</b> One of Kansas City's largest Ford inventories, plus full service and parts departments.</span></li>
         <li><span class="check">✓</span><span><b>After the sale, too.</b> I'm your point of contact for service scheduling, accessories, and your next trade.</span></li>
       </ul>
+    </div>
+  </div>
+</section>
+
+<section id="experience">
+  <div class="wrap">
+    <div class="exp-band">
+      <div class="exp-copy">
+        <span class="kicker">13 Years in Customer Experience</span>
+        <h2>Your car guy — and your tech guy for life</h2>
+        <p>Before Gary Crossley Ford, I spent 11 years in telecommunications with Verizon and 2 years in leadership with Chick-fil-A — 13 years total learning how to actually take care of people, not just sell to them. That background matters more than ever: today's Fords are rolling computers, loaded with tech that most buyers never fully learn to use. I do. So when you buy from me, you're not just getting a vehicle — you're getting someone who can actually walk you through SYNC, the app, the driver-assist features, and everything else under the hood of the software, for as long as you own it.</p>
+      </div>
+      <div class="exp-stats">
+        <div class="exp-stat"><b>13</b><span>years in customer service &amp; leadership</span></div>
+        <div class="exp-stat"><b>11</b><span>years in telecom &amp; tech (Verizon)</span></div>
+        <div class="exp-stat"><b>2</b><span>years in leadership (Chick-fil-A)</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="reviews">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">What Customers Say</span>
+      <h2>Straight from DealerRater</h2>
+      <p>Real feedback from people I've sold cars to — reviews coming soon.</p>
     </div>
   </div>
 </section>
