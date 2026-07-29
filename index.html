@@ -686,11 +686,10 @@
         <h3>Not ready to call? Send me a few details.</h3>
         <p>Tell me what you're looking for and the best way to reach you — I'll follow up personally, usually same day.</p>
       </div>
-      <form class="lead-form" action="https://formsubmit.co/Bhill@garycrossleyford.com" method="POST">
+      <form class="lead-form" id="leadForm">
         <input type="hidden" name="_subject" value="New lead from askforbrycekc.com">
         <input type="hidden" name="_template" value="table">
         <input type="hidden" name="_captcha" value="false">
-        <input type="hidden" name="_next" value="https://askforbrycekc.com/#contact-thanks">
         <input type="text" name="_honey" style="display:none">
         <div class="lead-form-grid">
           <input type="text" name="Name" placeholder="Your name" required>
@@ -699,7 +698,8 @@
           <input type="text" name="Looking for" placeholder="What are you looking for? (e.g. F-150, trade-in)">
         </div>
         <textarea name="Message" placeholder="Anything else I should know?" rows="3"></textarea>
-        <button type="submit" class="btn btn-primary">Send to Bryce</button>
+        <button type="submit" class="btn btn-primary" id="leadFormBtn">Send to Bryce</button>
+        <p id="leadFormStatus" style="display:none;color:var(--accent-2);font-weight:700;margin-top:4px"></p>
       </form>
     </div>
   </div>
@@ -744,6 +744,42 @@
   slider.addEventListener('mouseenter', function(){ clearInterval(timer); });
   slider.addEventListener('mouseleave', restart);
   restart();
+})();
+</script>
+<script>
+(function(){
+  var form = document.getElementById('leadForm');
+  var btn = document.getElementById('leadFormBtn');
+  var status = document.getElementById('leadFormStatus');
+  var sending = false;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if (sending) return;
+    sending = true;
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    status.style.display = 'none';
+    fetch('https://formsubmit.co/ajax/Bhill@garycrossleyford.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.fromEntries(new FormData(form)))
+    })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r); })
+    .then(function(){
+      btn.textContent = 'Sent!';
+      status.textContent = "Thanks — I'll be in touch shortly.";
+      status.style.display = 'block';
+      form.reset();
+    })
+    .catch(function(){
+      sending = false;
+      btn.disabled = false;
+      btn.textContent = 'Send to Bryce';
+      status.style.color = '#ff6b6b';
+      status.textContent = "Something went wrong — please call or text me instead.";
+      status.style.display = 'block';
+    });
+  });
 })();
 </script>
 
