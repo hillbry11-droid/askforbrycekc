@@ -345,6 +345,49 @@
   .lead-form textarea{resize:vertical}
   .lead-form button{align-self:flex-start;border:none;cursor:pointer;font-family:inherit}
 
+  /* ---------- CHAT WIDGET ---------- */
+  #chatToggle{
+    position:fixed;right:22px;bottom:22px;z-index:80;
+    width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;
+    background:var(--accent);color:#fff;font-size:1.5rem;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    display:flex;align-items:center;justify-content:center;
+    transition:background .2s, transform .2s;
+  }
+  #chatToggle:hover{background:var(--accent-2);transform:scale(1.05)}
+  #chatWindow{
+    position:fixed;right:22px;bottom:96px;z-index:80;
+    width:340px;max-width:calc(100vw - 32px);
+    height:460px;max-height:calc(100vh - 140px);
+    background:var(--bg-3);border:1px solid var(--line);border-radius:var(--radius);
+    display:none;flex-direction:column;overflow:hidden;
+    box-shadow:0 16px 48px rgba(0,0,0,.5);
+  }
+  #chatWindow.open{display:flex}
+  .chat-head{
+    background:linear-gradient(90deg,#00095B,var(--accent));
+    padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .chat-head div{font-weight:700;font-size:.95rem;color:#fff}
+  .chat-head small{display:block;font-weight:400;color:#dbe4ff;font-size:.72rem;margin-top:2px}
+  #chatClose{background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;opacity:.85}
+  #chatClose:hover{opacity:1}
+  #chatBody{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .chat-msg{max-width:85%;padding:9px 12px;border-radius:14px;font-size:.88rem;line-height:1.45}
+  .chat-msg.bot{background:var(--bg-2);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+  .chat-msg.user{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  .chat-msg.typing{color:var(--muted);font-style:italic}
+  #chatForm{display:flex;border-top:1px solid var(--line)}
+  #chatInput{
+    flex:1;background:var(--bg-2);border:none;color:var(--text);
+    padding:12px 14px;font-family:inherit;font-size:.88rem;outline:none;
+  }
+  #chatInput::placeholder{color:var(--muted)}
+  #chatSend{background:var(--accent);color:#fff;border:none;padding:0 18px;cursor:pointer;font-weight:700;font-size:.85rem}
+  #chatSend:hover{background:var(--accent-2)}
+  #chatSend:disabled{opacity:.6;cursor:default}
+  @media(max-width:480px){#chatWindow{right:16px;bottom:88px}#chatToggle{right:16px;bottom:16px}}
+
   /* ---------- FOOTER ---------- */
   footer{border-top:1px solid var(--line);padding:36px 0;color:var(--muted);font-size:.85rem}
   .foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
@@ -819,6 +862,83 @@
       status.textContent = "Something went wrong — please call or text me instead.";
       status.style.display = 'block';
     });
+  });
+})();
+</script>
+
+<!-- ---------- CHAT WIDGET ---------- -->
+<button id="chatToggle" aria-label="Chat with us">💬</button>
+<div id="chatWindow">
+  <div class="chat-head">
+    <div>Ask Bryce's Assistant<small>Usually replies instantly · Bryce follows up personally</small></div>
+    <button id="chatClose" aria-label="Close chat">✕</button>
+  </div>
+  <div id="chatBody"></div>
+  <form id="chatForm">
+    <input id="chatInput" type="text" placeholder="Ask about a vehicle, hours, or leave your info..." autocomplete="off">
+    <button id="chatSend" type="submit">Send</button>
+  </form>
+</div>
+<script>
+(function(){
+  // TODO: replace with your deployed DigitalOcean Function URL once created
+  var CHAT_ENDPOINT = "https://REPLACE-WITH-YOUR-FUNCTION-URL/bryce-bot/reply";
+
+  var toggle = document.getElementById('chatToggle');
+  var win = document.getElementById('chatWindow');
+  var closeBtn = document.getElementById('chatClose');
+  var body = document.getElementById('chatBody');
+  var form = document.getElementById('chatForm');
+  var input = document.getElementById('chatInput');
+  var sendBtn = document.getElementById('chatSend');
+  var history = [];
+  var opened = false;
+
+  function addMsg(role, text){
+    var div = document.createElement('div');
+    div.className = 'chat-msg ' + (role === 'user' ? 'user' : 'bot');
+    div.textContent = text;
+    body.appendChild(div);
+    body.scrollTop = body.scrollHeight;
+    return div;
+  }
+
+  toggle.addEventListener('click', function(){
+    win.classList.toggle('open');
+    if (!opened) {
+      opened = true;
+      addMsg('bot', "Hi! I'm here to help if Bryce can't get to the phone right away. Ask me about inventory, the dealership, or leave your info and he'll follow up personally.");
+    }
+  });
+  closeBtn.addEventListener('click', function(){ win.classList.remove('open'); });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var text = input.value.trim();
+    if (!text) return;
+    addMsg('user', text);
+    history.push({ role: 'user', content: text });
+    input.value = '';
+    sendBtn.disabled = true;
+    var typing = addMsg('bot', 'Typing...');
+    typing.classList.add('typing');
+
+    fetch(CHAT_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history })
+    })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(r); })
+      .then(function(data){
+        typing.remove();
+        addMsg('bot', data.reply);
+        history.push({ role: 'assistant', content: data.reply });
+      })
+      .catch(function(){
+        typing.remove();
+        addMsg('bot', "Sorry, I'm having trouble connecting right now — text or call Bryce directly at (816) 591-5172.");
+      })
+      .finally(function(){ sendBtn.disabled = false; });
   });
 })();
 </script>
