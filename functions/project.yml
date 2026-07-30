@@ -9,8 +9,6 @@ packages:
         web: true
         parameters: {}
         environment: {}
-        annotations:
-          require-whisk-auth: false
         limits:
           timeout: 15000
           memory: 256
