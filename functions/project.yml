@@ -1,0 +1,16 @@
+parameters: {}
+packages:
+  - name: bryce-bot
+    functions:
+      - name: reply
+        binary: false
+        main: main
+        runtime: "nodejs:18"
+        web: true
+        parameters: {}
+        environment: {}
+        annotations:
+          require-whisk-auth: false
+        limits:
+          timeout: 15000
+          memory: 256
