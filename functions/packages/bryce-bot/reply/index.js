@@ -101,7 +101,7 @@ exports.main = async (args) => {
     return {
       statusCode: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ error: "Something went wrong." }),
+      body: JSON.stringify({ error: "Something went wrong.", detail: String(err && err.message || err) }),
     };
   }
 };

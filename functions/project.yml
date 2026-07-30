@@ -8,7 +8,8 @@ packages:
         runtime: "nodejs:18"
         web: true
         parameters: {}
-        environment: {}
+        environment:
+          ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
         limits:
           timeout: 15000
           memory: 256
