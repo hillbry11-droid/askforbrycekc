@@ -881,7 +881,7 @@
 
 <!-- ---------- CHAT WIDGET ---------- -->
 <div id="chatWidget">
-  <button id="chatToggle" aria-label="Chat with Turbo"><video autoplay muted loop playsinline preload="auto"><source src="turbo-loop.webm" type="video/webm"><source src="turbo-loop.mp4" type="video/mp4"></video></button>
+  <button id="chatToggle" aria-label="Chat with Turbo"><video id="turboVideo" autoplay muted loop playsinline preload="auto" poster="turbo-poster.jpg"><source src="turbo-loop.mp4" type="video/mp4"><source src="turbo-loop.webm" type="video/webm"></video></button>
   <div class="chat-label">Chat with Turbo</div>
 </div>
 <div id="chatWindow">
@@ -909,6 +909,14 @@
   var sendBtn = document.getElementById('chatSend');
   var history = [];
   var opened = false;
+
+  var turboVideo = document.getElementById('turboVideo');
+  if (turboVideo) {
+    var tryPlay = function(){ turboVideo.play().catch(function(){}); };
+    tryPlay();
+    document.addEventListener('click', tryPlay, { once: true });
+    document.addEventListener('touchstart', tryPlay, { once: true });
+  }
 
   function addMsg(role, text){
     var div = document.createElement('div');
