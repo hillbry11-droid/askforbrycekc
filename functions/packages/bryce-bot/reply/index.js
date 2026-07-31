@@ -37,7 +37,8 @@ exports.main = async (args) => {
   }
 
   try {
-    if (args.debug === "net") {
+    const debugVal = Array.isArray(args.debug) ? args.debug[0] : args.debug;
+    if (debugVal === "net") {
       const started = Date.now();
       try {
         const c = new AbortController();
