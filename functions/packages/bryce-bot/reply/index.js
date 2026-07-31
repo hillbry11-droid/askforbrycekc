@@ -86,6 +86,72 @@ function findInventoryUrlInText(text) {
   return null;
 }
 
+// Gary Crossley Ford's inventory pages embed a full JSON record for every
+// vehicle card directly in the page (used to power their own listing
+// widgets) — e.g. {"vin":"...","name":"2026 Ford F-150 XL","image":"...",
+// "price":"48,150","mileage":48,"vdpLink":"https://.../vehicle/..."}.
+// Reading that structured data directly is far more reliable than trying
+// to scrape rendered <a>/<img> markup, so we find each "vin" key, then
+// brace-match outward to pull the whole enclosing JSON object.
+function extractVehicleObjectsFromHtml(html, limit) {
+  const vinRegex = /"vin"\s*:\s*"([A-Za-z0-9]{6,20})"/g;
+  const seenVins = new Set();
+  const vehicles = [];
+  let m;
+  while ((m = vinRegex.exec(html)) && vehicles.length < (limit || 3)) {
+    const vin = m[1];
+    if (seenVins.has(vin)) continue;
+
+    const idx = m.index;
+    let openIdx = -1;
+    let balance = 0;
+    for (let i = idx - 1; i >= 0 && i > idx - 20000; i--) {
+      const c = html[i];
+      if (c === "}") balance++;
+      else if (c === "{") {
+        if (balance === 0) {
+          openIdx = i;
+          break;
+        }
+        balance--;
+      }
+    }
+    let closeIdx = -1;
+    balance = 0;
+    for (let i = idx; i < html.length && i < idx + 20000; i++) {
+      const c = html[i];
+      if (c === "{") balance++;
+      else if (c === "}") {
+        if (balance === 0) {
+          closeIdx = i;
+          break;
+        }
+        balance--;
+      }
+    }
+    if (openIdx === -1 || closeIdx === -1) continue;
+
+    seenVins.add(vin);
+    try {
+      const obj = JSON.parse(html.slice(openIdx, closeIdx + 1));
+      if (!obj || !obj.vdpLink) continue;
+      let image = obj.image || null;
+      if (image && image.indexOf("http") !== 0) image = "https:" + image;
+      vehicles.push({
+        url: obj.vdpLink,
+        image: image,
+        title: obj.name || [obj.year, obj.make, obj.model, obj.trim].filter(Boolean).join(" "),
+        price: obj.price ? "$" + obj.price : null,
+        mileage: typeof obj.mileage === "number" ? obj.mileage : null,
+        isUsed: !!obj.isUsed,
+      });
+    } catch (e) {
+      // Malformed/unexpected object shape — skip this one, keep going.
+    }
+  }
+  return vehicles;
+}
+
 // Best-effort scrape of a dealer inventory listing page for a handful of
 // real, current vehicle cards (link, photo, title, price). This is a
 // defensive parser: if the page's markup doesn't match what we expect, it
@@ -109,39 +175,7 @@ async function fetchVehiclePreviews(categoryUrl, limit) {
     }
     if (!resp.ok) return [];
     const html = await resp.text();
-
-    // Find each unique vehicle detail page link on the page, in order.
-    const hrefRegex = /href="(\/vehicle\/[A-Za-z0-9]{6,20}\/[^"?#]+)"/g;
-    const seen = new Set();
-    const vehicles = [];
-    let match;
-    while ((match = hrefRegex.exec(html)) && vehicles.length < (limit || 3)) {
-      const href = match[1];
-      if (seen.has(href)) continue;
-      seen.add(href);
-
-      // Look at a window of HTML around this link for its photo, title, and price.
-      const start = Math.max(0, match.index - 1500);
-      const end = Math.min(html.length, match.index + 3000);
-      const windowHtml = html.slice(start, end);
-
-      const imgMatch = windowHtml.match(
-        /src="(\/\/[^"]*media-cdn-tango\.jazelc\.com\/media\/\d+[^"]*|https?:\/\/[^"]*media-cdn-tango\.jazelc\.com\/media\/\d+[^"]*)"/
-      );
-      let image = imgMatch ? imgMatch[1] : null;
-      if (image && image.indexOf("http") !== 0) image = "https:" + image;
-
-      const altMatch = windowHtml.match(/alt="([^"]{4,80})"/);
-      const priceMatch = windowHtml.match(/\$[\d]{1,3}(?:,\d{3})+/);
-
-      vehicles.push({
-        url: "https://www.garycrossleyford.com" + href,
-        image: image,
-        title: altMatch ? altMatch[1].trim() : null,
-        price: priceMatch ? priceMatch[0] : null,
-      });
-    }
-    return vehicles;
+    return extractVehicleObjectsFromHtml(html, limit);
   } catch (err) {
     console.error("Inventory preview fetch failed:", err);
     return [];
