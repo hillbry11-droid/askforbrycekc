@@ -12,4 +12,4 @@ packages:
           ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
         limits:
           timeout: 25000
-          memory: 256
+          memory: 512

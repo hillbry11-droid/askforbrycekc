@@ -187,41 +187,68 @@ function detectRequestedMake(text) {
 
 // Search the general new + used inventory pages for real, current listings
 // matching a specific make (e.g. a visitor asking "do you have any Teslas").
-// Only checks each page's first batch of listings — good enough for a
-// same-day-honest answer, not a guarantee of full-catalog coverage.
+async function fetchInventoryPageHtml(url, timeoutMs) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 5000);
+    let resp;
+    try {
+      resp = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!resp.ok) return null;
+    return await resp.text();
+  } catch (err) {
+    console.error("Inventory page fetch failed:", url, err);
+    return null;
+  }
+}
+
+// A single off-brand trade-in (like one used Tesla out of 100+ used
+// vehicles) can land on any results page, and the site's own sidebar
+// "make" filters are client-side/AJAX with no plain URL we can hit
+// directly. So: fetch used-inventory page 1, read the total result count
+// off it, then fetch the rest of the pages (srp-page-2/, srp-page-3/, ...)
+// in parallel — capped — and search the whole catalog for the make. Also
+// checks new inventory (almost always Ford, but cheap to include).
 async function searchInventoryForMake(make, limit) {
-  const pages = [
-    "https://www.garycrossleyford.com/inventory/used-vehicles/",
-    "https://www.garycrossleyford.com/inventory/new-vehicles/",
-  ];
-  const results = await Promise.all(
-    pages.map(async (url) => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        let resp;
-        try {
-          resp = await fetch(url, {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-            },
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timeoutId);
-        }
-        if (!resp.ok) return [];
-        const html = await resp.text();
-        return extractVehicleObjectsFromHtml(html, 24);
-      } catch (err) {
-        console.error("Make search fetch failed:", err);
-        return [];
-      }
-    })
-  );
-  const all = results.flat();
-  const matches = all.filter((v) => v.make && v.make.toLowerCase() === make.toLowerCase());
+  const usedBase = "https://www.garycrossleyford.com/inventory/used-vehicles/";
+  const newBase = "https://www.garycrossleyford.com/inventory/new-vehicles/";
+  const MAX_PAGES = 10;
+
+  const [usedPage1Html, newPage1Html] = await Promise.all([
+    fetchInventoryPageHtml(usedBase, 5000),
+    fetchInventoryPageHtml(newBase, 5000),
+  ]);
+
+  let allVehicles = [];
+  if (newPage1Html) allVehicles = allVehicles.concat(extractVehicleObjectsFromHtml(newPage1Html, 24));
+
+  if (usedPage1Html) {
+    allVehicles = allVehicles.concat(extractVehicleObjectsFromHtml(usedPage1Html, 24));
+
+    const countMatch = usedPage1Html.match(/([\d,]+)\s+(?:vehicles|results|matches)\s+found/i);
+    const totalCount = countMatch ? parseInt(countMatch[1].replace(/,/g, ""), 10) : 0;
+    const totalPages = totalCount ? Math.min(Math.ceil(totalCount / 12), MAX_PAGES) : 1;
+
+    if (totalPages > 1) {
+      const extraUrls = [];
+      for (let p = 2; p <= totalPages; p++) extraUrls.push(usedBase + "srp-page-" + p + "/");
+      const extraHtmls = await Promise.all(extraUrls.map((u) => fetchInventoryPageHtml(u, 5000)));
+      extraHtmls.forEach((html) => {
+        if (html) allVehicles = allVehicles.concat(extractVehicleObjectsFromHtml(html, 24));
+      });
+    }
+  }
+
+  const matches = allVehicles.filter((v) => v.make && v.make.toLowerCase() === make.toLowerCase());
   return matches.slice(0, limit || 3);
 }
 
@@ -267,6 +294,16 @@ exports.main = async (args) => {
 
   if (args.__ow_method === "options") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
+  }
+
+  // Temporary debug: GET .../reply?debug=makesearch&make=Tesla
+  if (args.debug === "makesearch" && args.make) {
+    const matches = await searchInventoryForMake(args.make, 5);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+      body: JSON.stringify({ debug: true, make: args.make, matchCount: matches.length, matches }),
+    };
   }
 
   try {
@@ -328,7 +365,7 @@ exports.main = async (args) => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
 
     let resp;
     try {
