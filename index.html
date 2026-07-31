@@ -918,10 +918,23 @@
     document.addEventListener('touchstart', tryPlay, { once: true });
   }
 
+  function escapeHtml(s){
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function linkify(text){
+    var escaped = escapeHtml(text);
+    return escaped.replace(/(https?:\/\/[^\s<]+[^\s<.,)])/g, function(url){
+      return '<a href="' + url + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">' + url + '</a>';
+    });
+  }
   function addMsg(role, text){
     var div = document.createElement('div');
     div.className = 'chat-msg ' + (role === 'user' ? 'user' : 'bot');
-    div.textContent = text;
+    if (role === 'user') {
+      div.textContent = text;
+    } else {
+      div.innerHTML = linkify(text);
+    }
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
     return div;
