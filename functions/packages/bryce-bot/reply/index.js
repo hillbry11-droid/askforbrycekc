@@ -108,9 +108,10 @@ exports.main = async (args) => {
     }
 
     const data = await resp.json();
-    const reply =
-      (data.content && data.content[0] && data.content[0].text) ||
-      "Sorry, I didn't catch that — mind rephrasing?";
+    const textBlock = Array.isArray(data.content)
+      ? data.content.find((b) => b && b.type === "text" && b.text)
+      : null;
+    const reply = (textBlock && textBlock.text) || "Sorry, I didn't catch that — mind rephrasing?";
 
     return {
       statusCode: 200,
