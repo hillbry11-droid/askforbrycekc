@@ -215,6 +215,69 @@ exports.main = async (args) => {
         };
       }
 
+      if (args.vin) {
+        const needle = '"vin":"' + args.vin;
+        const idx = html.indexOf(needle);
+        if (idx === -1) {
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+            body: JSON.stringify({ debug: true, vin: args.vin, found: false }),
+          };
+        }
+        // Find the enclosing {...} object around this position via brace matching.
+        let openIdx = -1;
+        let balance = 0;
+        for (let i = idx - 1; i >= 0; i--) {
+          const c = html[i];
+          if (c === "}") balance++;
+          else if (c === "{") {
+            if (balance === 0) {
+              openIdx = i;
+              break;
+            }
+            balance--;
+          }
+        }
+        let closeIdx = -1;
+        balance = 0;
+        for (let i = idx; i < html.length; i++) {
+          const c = html[i];
+          if (c === "{") balance++;
+          else if (c === "}") {
+            if (balance === 0) {
+              closeIdx = i;
+              break;
+            }
+            balance--;
+          }
+        }
+        let objText = null;
+        let parsed = null;
+        let parseError = null;
+        if (openIdx !== -1 && closeIdx !== -1) {
+          objText = html.slice(openIdx, closeIdx + 1);
+          try {
+            parsed = JSON.parse(objText);
+          } catch (e) {
+            parseError = String(e && e.message || e);
+          }
+        }
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          body: JSON.stringify({
+            debug: true,
+            vin: args.vin,
+            found: true,
+            objLength: objText ? objText.length : null,
+            parseError,
+            parsedKeys: parsed ? Object.keys(parsed) : null,
+            parsed,
+          }),
+        };
+      }
+
       if (args.inspect) {
         const hrefRegex = /href="(\/vehicle\/[A-Za-z0-9]{6,20}\/[^"?#]+)"/g;
         const hrefMatches = [];
