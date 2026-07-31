@@ -1005,16 +1005,39 @@
   });
   closeBtn.addEventListener('click', function(){ win.classList.remove('open'); });
 
+  // Soft, generous per-tab conversation cap. No real visitor should ever hit
+  // this in a normal conversation — it exists so a runaway loop or someone
+  // idly spamming the box doesn't rack up API costs. Resets on a new tab.
+  var MAX_MESSAGES = 30;
+  var msgCount = 0;
+  try { msgCount = parseInt(sessionStorage.getItem('turboMsgCount') || '0', 10) || 0; } catch (e) {}
+  var limitReached = msgCount >= MAX_MESSAGES;
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
     var text = input.value.trim();
     if (!text) return;
+
+    if (limitReached) {
+      addMsg('user', text);
+      input.value = '';
+      addMsg('bot', "We've covered a lot of ground! For anything else, text or call Bryce directly at (816) 591-5172 — he'll take great care of you from here.");
+      return;
+    }
+
     addMsg('user', text);
     history.push({ role: 'user', content: text });
     input.value = '';
     sendBtn.disabled = true;
     var typing = addMsg('bot', 'Typing...');
     typing.classList.add('typing');
+
+    msgCount++;
+    try { sessionStorage.setItem('turboMsgCount', String(msgCount)); } catch (e) {}
+    if (msgCount >= MAX_MESSAGES) {
+      limitReached = true;
+      input.placeholder = "That's the max for this chat — text/call (816) 591-5172";
+    }
 
     fetch(CHAT_ENDPOINT, {
       method: 'POST',
