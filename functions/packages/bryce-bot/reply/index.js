@@ -38,17 +38,29 @@ exports.main = async (args) => {
 
   try {
     const debugVal = Array.isArray(args.debug) ? args.debug[0] : args.debug;
-    if (debugVal === "net") {
+    if (debugVal === "net" || debugVal === "net2") {
+      const target = debugVal === "net2" ? "https://api.anthropic.com/v1/messages" : "https://example.com";
       const started = Date.now();
       try {
         const c = new AbortController();
-        const t = setTimeout(() => c.abort(), 4000);
-        const r = await fetch("https://example.com", { signal: c.signal });
+        const t = setTimeout(() => c.abort(), 6000);
+        const opts = { signal: c.signal };
+        if (debugVal === "net2") {
+          opts.method = "POST";
+          opts.headers = {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.ANTHROPIC_API_KEY || "MISSING",
+            "anthropic-version": "2023-06-01",
+          };
+          opts.body = JSON.stringify({ model: "claude-3-5-haiku-20241022", max_tokens: 16, messages: [{ role: "user", content: "hi" }] });
+        }
+        const r = await fetch(target, opts);
+        const text = await r.text();
         clearTimeout(t);
         return {
           statusCode: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },
-          body: JSON.stringify({ ok: true, status: r.status, ms: Date.now() - started }),
+          body: JSON.stringify({ ok: true, status: r.status, ms: Date.now() - started, body: text.slice(0, 400), keyPresent: !!process.env.ANTHROPIC_API_KEY, keyPrefix: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0,12) : null }),
         };
       } catch (netErr) {
         return {
