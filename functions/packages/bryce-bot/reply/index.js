@@ -282,6 +282,52 @@ async function fetchVehiclePreviews(categoryUrl, limit) {
   }
 }
 
+const LEAD_PHONE_REGEX = /(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/;
+const LEAD_EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
+function detectLeadContact(text) {
+  if (!text) return null;
+  const phoneMatch = text.match(LEAD_PHONE_REGEX);
+  const emailMatch = text.match(LEAD_EMAIL_REGEX);
+  if (!phoneMatch && !emailMatch) return null;
+  return {
+    phone: phoneMatch ? phoneMatch[0] : null,
+    email: emailMatch ? emailMatch[0] : null,
+  };
+}
+
+// A visitor just typed a phone number or email into the chat — that's a
+// live lead. Email Bryce immediately (same FormSubmit setup the site's main
+// "Contact Me" form already uses, so it lands in his Crossley inbox with no
+// extra setup) so he actually finds out, instead of Turbo just *saying*
+// it'll get passed along with nothing behind it.
+async function notifyLead(contact, latestMessageText, transcript) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const lines = transcript
+      .slice(-8)
+      .map((m) => (m.role === "user" ? "Visitor: " : "Turbo: ") + m.content)
+      .join("\n");
+    const payload = {
+      _subject: "New lead from Turbo chat — askforbrycekc.com",
+      source: "Turbo chat widget (askforbrycekc.com)",
+      visitor_message: latestMessageText,
+      phone_found: contact.phone || "(none detected)",
+      email_found: contact.email || "(none detected)",
+      recent_conversation: lines,
+    };
+    await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
+  } catch (err) {
+    console.error("Lead notification failed:", err);
+  }
+}
+
 exports.main = async (args) => {
   const origin = args.__ow_headers && args.__ow_headers.origin;
   const allowedOrigin = "https://askforbrycekc.com";
@@ -319,6 +365,21 @@ exports.main = async (args) => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
         body: JSON.stringify({ error: "Server not configured." }),
       };
+    }
+
+    // If the visitor's newest message contains a phone number or email,
+    // that's a real lead — email Bryce right now. Kick this off in parallel
+    // with the Claude call below (don't delay the reply for it), but we
+    // still `await` it before the function returns — serverless containers
+    // can freeze/recycle right after the response is sent, which would
+    // silently kill a true fire-and-forget request mid-flight.
+    let leadNotifyPromise = Promise.resolve();
+    const latestUserForLead = [...trimmed].reverse().find((m) => m.role === "user");
+    if (latestUserForLead) {
+      const contact = detectLeadContact(latestUserForLead.content);
+      if (contact) {
+        leadNotifyPromise = notifyLead(contact, latestUserForLead.content, trimmed);
+      }
     }
 
     // If the visitor's latest message names a specific make (Ford or
@@ -433,6 +494,8 @@ exports.main = async (args) => {
         .replace(/[ \t]+\n/g, "\n")
         .trim();
     }
+
+    await leadNotifyPromise;
 
     return {
       statusCode: 200,
