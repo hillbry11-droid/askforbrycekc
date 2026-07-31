@@ -212,6 +212,39 @@ exports.main = async (args) => {
           body: JSON.stringify({ debug: true, find: args.find, found: true, idx, around }),
         };
       }
+
+      if (args.inspect) {
+        const hrefRegex = /href="(\/vehicle\/[A-Za-z0-9]{6,20}\/[^"?#]+)"/g;
+        const hrefMatches = [];
+        let m;
+        while ((m = hrefRegex.exec(html)) && hrefMatches.length < 5) hrefMatches.push(m[1]);
+
+        const imgRegex = /media-cdn-tango\.jazelc\.com\/media\/\d+[^"'\s)]*/g;
+        const imgMatches = [];
+        while ((m = imgRegex.exec(html)) && imgMatches.length < 5) imgMatches.push(m[0]);
+
+        const priceRegex = /\$[\d]{1,3}(?:,\d{3})+/g;
+        const priceMatches = [];
+        while ((m = priceRegex.exec(html)) && priceMatches.length < 5) priceMatches.push(m[0]);
+
+        const altRegex = /alt="([^"]{4,80})"/g;
+        const altMatches = [];
+        while ((m = altRegex.exec(html)) && altMatches.length < 8) altMatches.push(m[1]);
+
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          body: JSON.stringify({
+            debug: true,
+            htmlLength: html.length,
+            hrefMatchCount: (html.match(hrefRegex) || []).length,
+            hrefMatches,
+            imgMatches,
+            priceMatches,
+            altMatches,
+          }),
+        };
+      }
     } catch (fetchErr) {
       return {
         statusCode: 200,
