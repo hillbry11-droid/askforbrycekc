@@ -938,16 +938,23 @@
 
   // Unlock audio playback on the first real user interaction, so the
   // notification sound isn't blocked by browser autoplay policies later.
-  // iOS Safari in particular only reliably "counts" an element as unlocked
-  // if it's actually played (not muted) at some point during a real user
-  // gesture, so play-then-immediately-pause rather than a volume=0 trick.
+  // Use the .muted (not .volume) property while priming — iOS Safari still
+  // counts a muted play() as "engaged" for future unmuted plays, but unlike
+  // volume=0 it's actually silent, so there's no audible glitch on first tap.
   var audioUnlocked = false;
   function unlockAudio(){
     if (audioUnlocked || !woof) return;
     audioUnlocked = true;
+    woof.muted = true;
     var p = woof.play();
     if (p && p.then) {
-      p.then(function(){ woof.pause(); woof.currentTime = 0; }).catch(function(){});
+      p.then(function(){
+        woof.pause();
+        woof.currentTime = 0;
+        woof.muted = false;
+      }).catch(function(){ woof.muted = false; });
+    } else {
+      woof.muted = false;
     }
   }
   document.addEventListener('click', unlockAudio, { once: true });
