@@ -938,20 +938,22 @@
 
   // Unlock audio playback on the first real user interaction, so the
   // notification sound isn't blocked by browser autoplay policies later.
+  // iOS Safari in particular only reliably "counts" an element as unlocked
+  // if it's actually played (not muted) at some point during a real user
+  // gesture, so play-then-immediately-pause rather than a volume=0 trick.
   var audioUnlocked = false;
   function unlockAudio(){
     if (audioUnlocked || !woof) return;
     audioUnlocked = true;
-    var vol = woof.volume;
-    woof.volume = 0;
-    woof.play().then(function(){
-      woof.pause();
-      woof.currentTime = 0;
-      woof.volume = vol;
-    }).catch(function(){ woof.volume = vol; });
+    var p = woof.play();
+    if (p && p.then) {
+      p.then(function(){ woof.pause(); woof.currentTime = 0; }).catch(function(){});
+    }
   }
   document.addEventListener('click', unlockAudio, { once: true });
   document.addEventListener('touchstart', unlockAudio, { once: true });
+  toggle.addEventListener('click', unlockAudio, { once: true });
+  form.addEventListener('submit', unlockAudio, { once: true });
 
   var turboVideo = document.getElementById('turboVideo');
   if (turboVideo) {
