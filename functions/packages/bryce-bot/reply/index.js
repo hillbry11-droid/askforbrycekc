@@ -93,7 +93,7 @@ function findInventoryUrlInText(text) {
 // Reading that structured data directly is far more reliable than trying
 // to scrape rendered <a>/<img> markup, so we find each "vin" key, then
 // brace-match outward to pull the whole enclosing JSON object.
-function extractVehicleObjectsFromHtml(html, limit) {
+function extractVehicleObjectsFromHtml(html, limit, debugLog) {
   const vinRegex = /"vin"\s*:\s*"([A-Za-z0-9]{6,20})"/g;
   const seenVins = new Set();
   const vehicles = [];
@@ -129,12 +129,19 @@ function extractVehicleObjectsFromHtml(html, limit) {
         balance--;
       }
     }
-    if (openIdx === -1 || closeIdx === -1) continue;
+    if (openIdx === -1 || closeIdx === -1) {
+      if (debugLog) debugLog.push({ vin, ok: false, reason: "brace match failed", openIdx, closeIdx });
+      continue;
+    }
 
     seenVins.add(vin);
     try {
-      const obj = JSON.parse(html.slice(openIdx, closeIdx + 1));
-      if (!obj || !obj.vdpLink) continue;
+      const objText = html.slice(openIdx, closeIdx + 1);
+      const obj = JSON.parse(objText);
+      if (!obj || !obj.vdpLink) {
+        if (debugLog) debugLog.push({ vin, ok: false, reason: "no vdpLink", keys: obj ? Object.keys(obj) : null });
+        continue;
+      }
       let image = obj.image || null;
       if (image && image.indexOf("http") !== 0) image = "https:" + image;
       vehicles.push({
@@ -145,8 +152,9 @@ function extractVehicleObjectsFromHtml(html, limit) {
         mileage: typeof obj.mileage === "number" ? obj.mileage : null,
         isUsed: !!obj.isUsed,
       });
+      if (debugLog) debugLog.push({ vin, ok: true });
     } catch (e) {
-      // Malformed/unexpected object shape — skip this one, keep going.
+      if (debugLog) debugLog.push({ vin, ok: false, reason: "parse error: " + String(e && e.message || e), objLength: closeIdx - openIdx });
     }
   }
   return vehicles;
@@ -351,11 +359,26 @@ exports.main = async (args) => {
         body: JSON.stringify({ debug: true, fetchError: String((fetchErr && fetchErr.message) || fetchErr) }),
       };
     }
-    const vehicles = await fetchVehiclePreviews(targetUrl, 3);
+    const html2 = await (async () => {
+      const controller2 = new AbortController();
+      const t2 = setTimeout(() => controller2.abort(), 6000);
+      try {
+        const r2 = await fetch(targetUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" },
+          signal: controller2.signal,
+        });
+        return await r2.text();
+      } finally {
+        clearTimeout(t2);
+      }
+    })();
+    const vinCount = (html2.match(/"vin"\s*:\s*"([A-Za-z0-9]{6,20})"/g) || []).length;
+    const debugLog = [];
+    const vehicles = extractVehicleObjectsFromHtml(html2, 3, debugLog);
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ debug: true, targetUrl, fetchOk, fetchStatus, htmlLength, htmlSnippet, vehicles }),
+      body: JSON.stringify({ debug: true, targetUrl, fetchOk, fetchStatus, htmlLength, vinCount, debugLog, vehicles }),
     };
   }
 
