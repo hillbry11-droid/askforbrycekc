@@ -390,6 +390,13 @@
   .chat-msg.bot{background:var(--bg-2);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
   .chat-msg.user{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
   .chat-msg.typing{color:var(--muted);font-style:italic}
+  .chat-vehicles{display:flex;flex-direction:column;gap:8px;align-self:flex-start;max-width:85%}
+  .chat-vehicle-card{display:flex;align-items:stretch;gap:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;overflow:hidden;text-decoration:none;color:inherit;transition:border-color .15s}
+  .chat-vehicle-card:hover{border-color:var(--accent)}
+  .chat-vehicle-img{flex:0 0 84px;width:84px;min-height:64px;background-size:cover;background-position:center;background-color:var(--bg-3,#1a1a1a)}
+  .chat-vehicle-info{padding:8px 10px 8px 0;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+  .chat-vehicle-title{font-size:.82rem;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .chat-vehicle-price{font-size:.82rem;color:var(--accent);font-weight:600}
   #chatForm{display:flex;border-top:1px solid var(--line)}
   #chatInput{
     flex:1;background:var(--bg-2);border:none;color:var(--text);
@@ -940,6 +947,31 @@
     return div;
   }
 
+  function addVehicleCards(vehicles){
+    if (!vehicles || !vehicles.length) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-vehicles';
+    vehicles.forEach(function(v){
+      var a = document.createElement('a');
+      a.className = 'chat-vehicle-card';
+      a.href = v.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      var img = '';
+      if (v.image) {
+        img = '<div class="chat-vehicle-img" style="background-image:url(\'' + v.image.replace(/'/g, "%27") + '\')"></div>';
+      }
+      a.innerHTML = img +
+        '<div class="chat-vehicle-info">' +
+          '<div class="chat-vehicle-title">' + escapeHtml(v.title || 'View vehicle') + '</div>' +
+          (v.price ? '<div class="chat-vehicle-price">' + escapeHtml(v.price) + '</div>' : '') +
+        '</div>';
+      wrap.appendChild(a);
+    });
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+  }
+
   toggle.addEventListener('click', function(){
     win.classList.toggle('open');
     if (!opened) {
@@ -969,6 +1001,7 @@
       .then(function(data){
         typing.remove();
         addMsg('bot', data.reply);
+        addVehicleCards(data.vehicles);
         history.push({ role: 'assistant', content: data.reply });
       })
       .catch(function(){

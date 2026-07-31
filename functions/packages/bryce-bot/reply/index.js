@@ -35,6 +35,8 @@ Live inventory search links (these are real, working links to Gary Crossley Ford
 - Transit / vans: https://www.garycrossleyford.com/inventory/new-vehicles/vehicle-type-Van%20-slash-%20Minivan/
 (For used versions of any model above, swap "new-vehicles" for "used-vehicles" in the URL.)
 
+When you recommend a category, include the exact link from the list above somewhere in your reply (on its own, as plain text/URL) — the system will automatically look up a few real current listings from that page and show them as photo preview cards under your message, so you don't need to describe individual vehicles yourself.
+
 Your job:
 - Be warm, brief, and helpful, like a knowledgeable coworker of Bryce's, not a generic corporate bot.
 - Help visitors with general questions about inventory categories, the dealership, financing basics in general terms, and how to reach Bryce.
@@ -45,6 +47,106 @@ Your job:
 - If someone wants a real answer, a callback, or is ready to move forward, ask for their name and best phone number or email, and let them know Bryce (or the team) will follow up personally, usually same day. Do not claim you will personally notify anyone — just collect the info and tell them it will be passed along.
 - Keep replies short (2-4 sentences typically). Use plain, friendly language, not sales-pitchy.
 - If asked something you don't know or that's outside car buying / this dealership, say so honestly and point them to call/text Bryce.`;
+
+// Real inventory category pages (server-rendered HTML) we're allowed to scrape
+// for live vehicle preview cards. Keep in sync with the links listed in
+// SYSTEM_PROMPT above.
+const INVENTORY_URLS = [
+  "https://www.garycrossleyford.com/inventory/new-vehicles/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/",
+  "https://www.garycrossleyford.com/inventory/certified-pre-owned/",
+  "https://www.garycrossleyford.com/inventory/crossley-customs/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-F--150/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-F--150/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Super%20Duty%20F--250%20SRW/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Super%20Duty%20F--250%20SRW/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Bronco/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Bronco/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Bronco%20Sport/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Bronco%20Sport/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Maverick/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Maverick/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Explorer/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Explorer/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Mustang/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Mustang/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Mustang%20Mach--E/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Mustang%20Mach--E/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-Expedition%20MAX/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/models-Ford-Expedition%20MAX/",
+  "https://www.garycrossleyford.com/inventory/new-vehicles/vehicle-type-Van%20-slash-%20Minivan/",
+  "https://www.garycrossleyford.com/inventory/used-vehicles/vehicle-type-Van%20-slash-%20Minivan/",
+];
+
+function findInventoryUrlInText(text) {
+  if (!text) return null;
+  for (const url of INVENTORY_URLS) {
+    if (text.indexOf(url) !== -1) return url;
+  }
+  return null;
+}
+
+// Best-effort scrape of a dealer inventory listing page for a handful of
+// real, current vehicle cards (link, photo, title, price). This is a
+// defensive parser: if the page's markup doesn't match what we expect, it
+// just returns an empty list rather than throwing, so a site redesign can
+// never break the chat itself.
+async function fetchVehiclePreviews(categoryUrl, limit) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let resp;
+    try {
+      resp = await fetch(categoryUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!resp.ok) return [];
+    const html = await resp.text();
+
+    // Find each unique vehicle detail page link on the page, in order.
+    const hrefRegex = /href="(\/vehicle\/[A-Za-z0-9]{6,20}\/[^"?#]+)"/g;
+    const seen = new Set();
+    const vehicles = [];
+    let match;
+    while ((match = hrefRegex.exec(html)) && vehicles.length < (limit || 3)) {
+      const href = match[1];
+      if (seen.has(href)) continue;
+      seen.add(href);
+
+      // Look at a window of HTML around this link for its photo, title, and price.
+      const start = Math.max(0, match.index - 1500);
+      const end = Math.min(html.length, match.index + 3000);
+      const windowHtml = html.slice(start, end);
+
+      const imgMatch = windowHtml.match(
+        /src="(\/\/[^"]*media-cdn-tango\.jazelc\.com\/media\/\d+[^"]*|https?:\/\/[^"]*media-cdn-tango\.jazelc\.com\/media\/\d+[^"]*)"/
+      );
+      let image = imgMatch ? imgMatch[1] : null;
+      if (image && image.indexOf("http") !== 0) image = "https:" + image;
+
+      const altMatch = windowHtml.match(/alt="([^"]{4,80})"/);
+      const priceMatch = windowHtml.match(/\$[\d]{1,3}(?:,\d{3})+/);
+
+      vehicles.push({
+        url: "https://www.garycrossleyford.com" + href,
+        image: image,
+        title: altMatch ? altMatch[1].trim() : null,
+        price: priceMatch ? priceMatch[0] : null,
+      });
+    }
+    return vehicles;
+  } catch (err) {
+    console.error("Inventory preview fetch failed:", err);
+    return [];
+  }
+}
 
 exports.main = async (args) => {
   const origin = args.__ow_headers && args.__ow_headers.origin;
@@ -137,10 +239,19 @@ exports.main = async (args) => {
       : null;
     const reply = (textBlock && textBlock.text) || "Sorry, I didn't catch that — mind rephrasing?";
 
+    // If Turbo's reply mentions a known inventory category link, pull a
+    // few real, current listings from that page so the front end can show
+    // photo preview cards. Best-effort — never blocks or breaks the reply.
+    let vehicles = [];
+    const matchedUrl = findInventoryUrlInText(reply);
+    if (matchedUrl) {
+      vehicles = await fetchVehiclePreviews(matchedUrl, 3);
+    }
+
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ reply }),
+      body: JSON.stringify({ reply, vehicles }),
     };
   } catch (err) {
     console.error(err);
