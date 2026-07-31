@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bryce Hill | Ford Salesman in Kansas City, MO — Gary Crossley Ford</title>
 <meta name="description" content="Buying a Ford in Kansas City? Work with Bryce Hill, a Ford salesman at Gary Crossley Ford. Browse new F-150, Bronco, Maverick, Explorer, and Mustang inventory, text for a quote, and see real customer reviews.">
+<link rel="preload" as="video" href="turbo-loop.mp4" type="video/mp4">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -888,7 +889,7 @@
 
 <!-- ---------- CHAT WIDGET ---------- -->
 <div id="chatWidget">
-  <button id="chatToggle" aria-label="Chat with Turbo"><video id="turboVideo" autoplay muted loop playsinline preload="auto" poster="turbo-poster.jpg"><source src="turbo-loop.mp4" type="video/mp4"><source src="turbo-loop.webm" type="video/webm"></video></button>
+  <button id="chatToggle" aria-label="Chat with Turbo"><video id="turboVideo" autoplay muted loop playsinline preload="auto" fetchpriority="high" poster="turbo-poster.jpg"><source src="turbo-loop.mp4" type="video/mp4" fetchpriority="high"><source src="turbo-loop.webm" type="video/webm"></video></button>
   <div class="chat-label">Chat with Turbo</div>
 </div>
 <div id="chatWindow">
@@ -921,6 +922,10 @@
   if (turboVideo) {
     var tryPlay = function(){ turboVideo.play().catch(function(){}); };
     tryPlay();
+    // Small/fast file, but retry the instant enough of it has buffered to
+    // play, so it starts right away instead of sitting on the poster frame.
+    turboVideo.addEventListener('loadeddata', tryPlay);
+    turboVideo.addEventListener('canplay', tryPlay);
     document.addEventListener('click', tryPlay, { once: true });
     document.addEventListener('touchstart', tryPlay, { once: true });
   }
