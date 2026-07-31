@@ -296,16 +296,6 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  // Temporary debug: GET .../reply?debug=makesearch&make=Tesla
-  if (args.debug === "makesearch" && args.make) {
-    const matches = await searchInventoryForMake(args.make, 5);
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ debug: true, make: args.make, matchCount: matches.length, matches }),
-    };
-  }
-
   try {
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
