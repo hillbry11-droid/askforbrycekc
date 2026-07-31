@@ -350,20 +350,6 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  // Temporary debug: GET .../reply?debug=leadtest
-  if (args.debug === "leadtest") {
-    const result = await notifyLead(
-      { phone: "816-266-0153", email: null },
-      "TEST — Amber Hill 816-266-0153",
-      [{ role: "user", content: "TEST — Amber Hill 816-266-0153" }]
-    );
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ debug: true, result }),
-    };
-  }
-
   try {
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
