@@ -319,7 +319,12 @@ async function notifyLead(contact, latestMessageText, transcript) {
     };
     const resp = await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Origin: "https://askforbrycekc.com",
+        Referer: "https://askforbrycekc.com/",
+      },
       body: JSON.stringify(payload),
       signal: controller.signal,
     }).finally(() => clearTimeout(timeoutId));
