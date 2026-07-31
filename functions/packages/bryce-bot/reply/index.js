@@ -373,12 +373,17 @@ exports.main = async (args) => {
       }
     })();
     const vinCount = (html2.match(/"vin"\s*:\s*"([A-Za-z0-9]{6,20})"/g) || []).length;
-    const debugLog = [];
-    const vehicles = extractVehicleObjectsFromHtml(html2, 3, debugLog);
+    const debugLogFull = [];
+    const vehicles = extractVehicleObjectsFromHtml(html2, 3, debugLogFull);
+    const debugLog = debugLogFull.slice(0, 4).map((d) => ({
+      vin: d.vin,
+      ok: d.ok,
+      reason: d.reason ? String(d.reason).slice(0, 120) : undefined,
+    }));
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ debug: true, targetUrl, fetchOk, fetchStatus, htmlLength, vinCount, debugLog, vehicles }),
+      body: JSON.stringify({ debug: true, fetchOk, fetchStatus, vinCount, debugLogCount: debugLogFull.length, debugLog, vehicles }),
     };
   }
 
