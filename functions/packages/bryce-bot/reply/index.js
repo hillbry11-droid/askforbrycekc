@@ -371,14 +371,16 @@ exports.main = async (args) => {
 
   // Basic abuse guard: this endpoint is only meant to be called from the
   // chat widget on askforbrycekc.com. Reject anything that isn't a browser
-  // request actually coming from that page — cheap to check, invisible to
+  // request actually coming from that site — cheap to check, invisible to
   // real visitors, but stops the vast majority of scripted/automated abuse
-  // that would otherwise burn through the Anthropic API budget.
+  // that would otherwise burn through the Anthropic API budget. Matches
+  // both the apex domain and the "www." variant (both resolve to the site).
+  const SITE_HOST_RE = /^https:\/\/(www\.)?askforbrycekc\.com(\/|$)/i;
   const reqHeaders = args.__ow_headers || {};
   const reqOrigin = reqHeaders.origin;
   const reqReferer = reqHeaders.referer || reqHeaders.referrer;
-  const originOk = reqOrigin ? reqOrigin === allowedOrigin : true;
-  const refererOk = reqReferer ? reqReferer.indexOf(allowedOrigin) === 0 : true;
+  const originOk = reqOrigin ? SITE_HOST_RE.test(reqOrigin + "/") : true;
+  const refererOk = reqReferer ? SITE_HOST_RE.test(reqReferer) : true;
   const hasAnySignal = !!(reqOrigin || reqReferer);
   if (!hasAnySignal || !originOk || !refererOk) {
     return {
