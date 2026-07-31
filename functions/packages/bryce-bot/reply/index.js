@@ -62,7 +62,7 @@ exports.main = async (args) => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const timeoutId = setTimeout(() => controller.abort(), 2200);
 
     let resp;
     try {
