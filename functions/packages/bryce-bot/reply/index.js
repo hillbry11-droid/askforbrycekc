@@ -37,6 +37,27 @@ exports.main = async (args) => {
   }
 
   try {
+    if (args.debug === "net") {
+      const started = Date.now();
+      try {
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort(), 4000);
+        const r = await fetch("https://example.com", { signal: c.signal });
+        clearTimeout(t);
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          body: JSON.stringify({ ok: true, status: r.status, ms: Date.now() - started }),
+        };
+      } catch (netErr) {
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          body: JSON.stringify({ ok: false, error: String((netErr && netErr.message) || netErr), ms: Date.now() - started }),
+        };
+      }
+    }
+
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
       return {
