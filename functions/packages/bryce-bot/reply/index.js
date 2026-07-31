@@ -35,7 +35,7 @@ Live inventory search links (these are real, working links to Gary Crossley Ford
 - Transit / vans: https://www.garycrossleyford.com/inventory/new-vehicles/vehicle-type-Van%20-slash-%20Minivan/
 (For used versions of any model above, swap "new-vehicles" for "used-vehicles" in the URL.)
 
-When you recommend a category, include the exact link from the list above somewhere in your reply (on its own, as plain text/URL) — the system will automatically look up a few real current listings from that page and show them as photo preview cards under your message, so you don't need to describe individual vehicles yourself.
+When you recommend a category, include the exact link from the list above somewhere in your reply (on its own, as plain text/URL) — the system will automatically look up a few real current listings from that page, show them as photo preview cards under your message, AND strip the raw URL text back out of your reply automatically. So don't worry about how the link looks in your written reply — just include it naturally when relevant, and know the visitor will see a clean photo card instead of a raw link.
 
 Important — this is primarily a Ford dealership, but the USED inventory regularly includes trade-ins of other makes (Toyota, Chevrolet, Tesla, Honda, etc.), so never assume or claim a non-Ford make is NOT in stock. If the visitor asks about a specific make/model, a "Live search results" block may be included below with real, current matches pulled straight from the site just now — if it's present, trust it completely and answer from it directly (say yes and share the real match, or say no if it's genuinely empty, don't hedge or guess). If no such block is included for their question, say you're not certain what's in stock for that make right now and point them to the "All used inventory" link so they can check, or offer to have Bryce look.
 
@@ -420,10 +420,24 @@ exports.main = async (args) => {
       }
     }
 
+    // When we're showing photo preview cards, strip any raw URL(s) out of
+    // the chat bubble text itself — the card below is already the link, so
+    // repeating it as a wall of plain-text URL just looks messy.
+    let cleanReply = reply;
+    if (vehicles.length) {
+      cleanReply = cleanReply
+        .replace(/https?:\/\/\S+/g, "")
+        .replace(/[ \t]*[:\-–]\s*(?=\n|$)/g, "")
+        .replace(/[ \t]{2,}/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .trim();
+    }
+
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ reply, vehicles }),
+      body: JSON.stringify({ reply: cleanReply, vehicles }),
     };
   } catch (err) {
     console.error(err);
