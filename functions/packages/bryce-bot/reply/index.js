@@ -308,16 +308,15 @@ async function notifyLead(contact, latestMessageText, transcript) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     const lines = transcript
-      .slice(-8)
       .map((m) => (m.role === "user" ? "Visitor: " : "Turbo: ") + m.content)
-      .join("\n");
+      .join("\n\n");
     const payload = {
       _subject: "New lead from Turbo chat — askforbrycekc.com",
       source: "Turbo chat widget (askforbrycekc.com)",
       visitor_message: latestMessageText,
       phone_found: contact.phone || "(none detected)",
       email_found: contact.email || "(none detected)",
-      recent_conversation: lines,
+      full_chat_log: lines,
     };
     const resp = await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
       method: "POST",
@@ -363,11 +362,14 @@ exports.main = async (args) => {
       };
     }
 
-    // Trim to last 12 turns to keep requests small/cheap
-    const trimmed = messages.slice(-12).map((m) => ({
+    // Normalize the full conversation once. Claude only needs the last 12
+    // turns (keeps requests small/cheap), but a lead notification email
+    // should include the whole chat log so Bryce has full context.
+    const fullTranscript = messages.slice(-60).map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: String(m.content || "").slice(0, 2000),
     }));
+    const trimmed = fullTranscript.slice(-12);
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -389,7 +391,7 @@ exports.main = async (args) => {
     if (latestUserForLead) {
       const contact = detectLeadContact(latestUserForLead.content);
       if (contact) {
-        leadNotifyPromise = notifyLead(contact, latestUserForLead.content, trimmed);
+        leadNotifyPromise = notifyLead(contact, latestUserForLead.content, fullTranscript);
       }
     }
 
