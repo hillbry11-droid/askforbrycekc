@@ -162,6 +162,44 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
+  // Temporary debug branch: GET .../reply?debug=vehicles&url=<encoded category url>
+  // Lets us test the scraper directly without going through Claude/chat.
+  if (args.debug === "vehicles") {
+    const targetUrl = args.url || "https://www.garycrossleyford.com/inventory/new-vehicles/models-Ford-F--150/";
+    let fetchOk = null;
+    let fetchStatus = null;
+    let htmlLength = null;
+    let htmlSnippet = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const resp = await fetch(targetUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        },
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+      fetchOk = resp.ok;
+      fetchStatus = resp.status;
+      const html = await resp.text();
+      htmlLength = html.length;
+      htmlSnippet = html.slice(0, 400);
+    } catch (fetchErr) {
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+        body: JSON.stringify({ debug: true, fetchError: String((fetchErr && fetchErr.message) || fetchErr) }),
+      };
+    }
+    const vehicles = await fetchVehiclePreviews(targetUrl, 3);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+      body: JSON.stringify({ debug: true, targetUrl, fetchOk, fetchStatus, htmlLength, htmlSnippet, vehicles }),
+    };
+  }
+
   try {
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
