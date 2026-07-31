@@ -317,14 +317,17 @@ async function notifyLead(contact, latestMessageText, transcript) {
       email_found: contact.email || "(none detected)",
       recent_conversation: lines,
     };
-    await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
+    const resp = await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal,
     }).finally(() => clearTimeout(timeoutId));
+    const bodyText = await resp.text().catch(() => "");
+    return { ok: resp.ok, status: resp.status, body: bodyText.slice(0, 500) };
   } catch (err) {
     console.error("Lead notification failed:", err);
+    return { ok: false, error: String((err && err.message) || err) };
   }
 }
 
@@ -340,6 +343,20 @@ exports.main = async (args) => {
 
   if (args.__ow_method === "options") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
+  }
+
+  // Temporary debug: GET .../reply?debug=leadtest
+  if (args.debug === "leadtest") {
+    const result = await notifyLead(
+      { phone: "816-266-0153", email: null },
+      "TEST — Amber Hill 816-266-0153",
+      [{ role: "user", content: "TEST — Amber Hill 816-266-0153" }]
+    );
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+      body: JSON.stringify({ debug: true, result }),
+    };
   }
 
   try {
