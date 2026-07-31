@@ -61,20 +61,41 @@ exports.main = async (args) => {
       };
     }
 
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-haiku-20241022",
-        max_tokens: 400,
-        system: SYSTEM_PROMPT,
-        messages: trimmed,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+    let resp;
+    try {
+      resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-3-5-haiku-20241022",
+          max_tokens: 400,
+          system: SYSTEM_PROMPT,
+          messages: trimmed,
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.error("Fetch to Anthropic failed:", fetchErr);
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+        body: JSON.stringify({
+          error: "Could not reach Anthropic API.",
+          detail: String((fetchErr && fetchErr.message) || fetchErr),
+          keyPresent: !!apiKey,
+          keyPrefix: apiKey ? apiKey.slice(0, 12) : null,
+        }),
+      };
+    }
+    clearTimeout(timeoutId);
 
     if (!resp.ok) {
       const errText = await resp.text();
@@ -82,7 +103,7 @@ exports.main = async (args) => {
       return {
         statusCode: 502,
         headers: { "Content-Type": "application/json", ...corsHeaders },
-        body: JSON.stringify({ error: "Upstream error." }),
+        body: JSON.stringify({ error: "Upstream error.", status: resp.status, detail: errText.slice(0, 500) }),
       };
     }
 
