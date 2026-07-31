@@ -921,8 +921,10 @@
 </div>
 <script>
 (function(){
-  // TODO: replace with your deployed DigitalOcean Function URL once created
-  var CHAT_ENDPOINT = "https://askforbrycekc.com/askforbrycekc-functions/bryce-bot/reply";
+  // Always call the function on whichever host the visitor is actually on
+  // (apex or "www." both resolve to this site) so the request is always
+  // same-origin and never depends on CORS matching a hardcoded domain.
+  var CHAT_ENDPOINT = window.location.origin + "/askforbrycekc-functions/bryce-bot/reply";
 
   var toggle = document.getElementById('chatToggle');
   var win = document.getElementById('chatWindow');

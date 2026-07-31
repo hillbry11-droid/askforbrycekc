@@ -356,8 +356,18 @@ async function notifyLead(contact, latestMessageText, transcript) {
 }
 
 exports.main = async (args) => {
-  const origin = args.__ow_headers && args.__ow_headers.origin;
-  const allowedOrigin = "https://askforbrycekc.com";
+  // This endpoint is only meant to be called from the chat widget on
+  // askforbrycekc.com (apex or "www." — both resolve to the same site).
+  // Reflect back whichever of those the request actually came from as the
+  // CORS-allowed origin — hardcoding just the apex domain here would make
+  // the browser itself block the response via CORS for any visitor on the
+  // "www." host, even before any of our own validation below runs.
+  const SITE_HOST_RE = /^https:\/\/(www\.)?askforbrycekc\.com(\/|$)/i;
+  const reqHeaders = args.__ow_headers || {};
+  const reqOrigin = reqHeaders.origin;
+  const reqReferer = reqHeaders.referer || reqHeaders.referrer;
+  const defaultOrigin = "https://askforbrycekc.com";
+  const allowedOrigin = reqOrigin && SITE_HOST_RE.test(reqOrigin + "/") ? reqOrigin : defaultOrigin;
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -369,16 +379,10 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  // Basic abuse guard: this endpoint is only meant to be called from the
-  // chat widget on askforbrycekc.com. Reject anything that isn't a browser
-  // request actually coming from that site — cheap to check, invisible to
-  // real visitors, but stops the vast majority of scripted/automated abuse
-  // that would otherwise burn through the Anthropic API budget. Matches
-  // both the apex domain and the "www." variant (both resolve to the site).
-  const SITE_HOST_RE = /^https:\/\/(www\.)?askforbrycekc\.com(\/|$)/i;
-  const reqHeaders = args.__ow_headers || {};
-  const reqOrigin = reqHeaders.origin;
-  const reqReferer = reqHeaders.referer || reqHeaders.referrer;
+  // Basic abuse guard: reject anything that isn't a browser request
+  // actually coming from the site — cheap to check, invisible to real
+  // visitors, but stops the vast majority of scripted/automated abuse that
+  // would otherwise burn through the Anthropic API budget.
   const originOk = reqOrigin ? SITE_HOST_RE.test(reqOrigin + "/") : true;
   const refererOk = reqReferer ? SITE_HOST_RE.test(reqReferer) : true;
   const hasAnySignal = !!(reqOrigin || reqReferer);
