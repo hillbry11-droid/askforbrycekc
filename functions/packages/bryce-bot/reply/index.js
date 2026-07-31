@@ -37,13 +37,15 @@ Live inventory search links (these are real, working links to Gary Crossley Ford
 
 When you recommend a category, include the exact link from the list above somewhere in your reply (on its own, as plain text/URL) — the system will automatically look up a few real current listings from that page and show them as photo preview cards under your message, so you don't need to describe individual vehicles yourself.
 
+Important — this is primarily a Ford dealership, but the USED inventory regularly includes trade-ins of other makes (Toyota, Chevrolet, Tesla, Honda, etc.), so never assume or claim a non-Ford make is NOT in stock. If the visitor asks about a specific make/model, a "Live search results" block may be included below with real, current matches pulled straight from the site just now — if it's present, trust it completely and answer from it directly (say yes and share the real match, or say no if it's genuinely empty, don't hedge or guess). If no such block is included for their question, say you're not certain what's in stock for that make right now and point them to the "All used inventory" link so they can check, or offer to have Bryce look.
+
 Your job:
 - Be warm, brief, and helpful, like a knowledgeable coworker of Bryce's, not a generic corporate bot.
 - Help visitors with general questions about inventory categories, the dealership, financing basics in general terms, and how to reach Bryce.
-- When someone describes what they want — a model, body style, budget, mileage, year, new vs. used — ask a quick clarifying question or two if helpful (e.g. new or used, rough budget), then give them the matching live inventory link(s) from the list above so they can see real current stock and filter further by price/mileage/year using the filters on that page (you can't see individual listings or exact current stock yourself, so don't claim specific vehicles are or aren't available).
+- When someone describes what they want — a model, body style, budget, mileage, year, new vs. used — ask a quick clarifying question or two if helpful (e.g. new or used, rough budget), then give them the matching live inventory link(s) from the list above so they can see real current stock and filter further by price/mileage/year using the filters on that page (you can't see individual listings or exact current stock yourself beyond any live search results provided to you, so don't claim specific vehicles are or aren't available otherwise).
 - If their budget or mileage need is very specific and they want a hand-picked match, offer to grab their name and phone/email so Bryce can personally pull exact matches and follow up — this is often the best answer for a specific budget.
-- NEVER quote a specific price, payment amount, trade-in value, or promise financing approval/terms. Redirect those to Bryce or the dealership finance team.
-- NEVER invent inventory (a specific VIN, stock number, or "yes we have that exact car") — direct them to the live inventory links above or to text/call Bryce with a stock number.
+- NEVER quote a specific price, payment amount, trade-in value, or promise financing approval/terms. Redirect those to Bryce or the dealership finance team. (Exception: you may repeat a price that appears in a live search results block provided to you, since that's real current data.)
+- NEVER invent inventory (a specific VIN, stock number, or "yes we have that exact car") unless it's backed by a live search results block provided to you — otherwise direct them to the live inventory links above or to text/call Bryce with a stock number.
 - If someone wants a real answer, a callback, or is ready to move forward, ask for their name and best phone number or email, and let them know Bryce (or the team) will follow up personally, usually same day. Do not claim you will personally notify anyone — just collect the info and tell them it will be passed along.
 - Keep replies short (2-4 sentences typically). Use plain, friendly language, not sales-pitchy.
 - If asked something you don't know or that's outside car buying / this dealership, say so honestly and point them to call/text Bryce.`;
@@ -151,6 +153,7 @@ function extractVehicleObjectsFromHtml(html, limit, debugLog) {
         price: obj.price ? "$" + obj.price : null,
         mileage: typeof obj.mileage === "number" ? obj.mileage : null,
         isUsed: !!obj.isUsed,
+        make: obj.make || null,
       });
       if (debugLog) debugLog.push({ vin, ok: true });
     } catch (e) {
@@ -158,6 +161,68 @@ function extractVehicleObjectsFromHtml(html, limit, debugLog) {
     }
   }
   return vehicles;
+}
+
+// Recognized vehicle makes we'll actively search for, including non-Ford
+// makes that can show up as used trade-ins. Order matters slightly for the
+// word-boundary regex below but doesn't need to be exhaustive.
+const KNOWN_MAKES = [
+  "Ford", "Lincoln", "Tesla", "Toyota", "Honda", "Chevrolet", "Chevy", "Dodge",
+  "Jeep", "Ram", "GMC", "Buick", "Cadillac", "Chrysler", "Nissan", "Hyundai",
+  "Kia", "BMW", "Mercedes-Benz", "Mercedes", "Audi", "Volkswagen", "VW",
+  "Volvo", "Subaru", "Mazda", "Lexus", "Acura", "Infiniti", "Mitsubishi",
+  "Jaguar", "Land Rover", "Porsche", "Mini", "Fiat",
+];
+
+function detectRequestedMake(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  for (const make of KNOWN_MAKES) {
+    const escaped = make.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("\\b" + escaped + "\\b", "i");
+    if (re.test(lower)) return make;
+  }
+  return null;
+}
+
+// Search the general new + used inventory pages for real, current listings
+// matching a specific make (e.g. a visitor asking "do you have any Teslas").
+// Only checks each page's first batch of listings — good enough for a
+// same-day-honest answer, not a guarantee of full-catalog coverage.
+async function searchInventoryForMake(make, limit) {
+  const pages = [
+    "https://www.garycrossleyford.com/inventory/used-vehicles/",
+    "https://www.garycrossleyford.com/inventory/new-vehicles/",
+  ];
+  const results = await Promise.all(
+    pages.map(async (url) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        let resp;
+        try {
+          resp = await fetch(url, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            },
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        if (!resp.ok) return [];
+        const html = await resp.text();
+        return extractVehicleObjectsFromHtml(html, 24);
+      } catch (err) {
+        console.error("Make search fetch failed:", err);
+        return [];
+      }
+    })
+  );
+  const all = results.flat();
+  const matches = all.filter((v) => v.make && v.make.toLowerCase() === make.toLowerCase());
+  return matches.slice(0, limit || 3);
 }
 
 // Best-effort scrape of a dealer inventory listing page for a handful of
@@ -229,6 +294,39 @@ exports.main = async (args) => {
       };
     }
 
+    // If the visitor's latest message names a specific make (Ford or
+    // otherwise — used trade-ins can be anything), do a real live search
+    // right now and hand Claude the actual results, instead of letting it
+    // guess what is or isn't in stock.
+    let makeSearchResults = [];
+    let requestedMake = null;
+    const lastUserMsg = [...trimmed].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) {
+      requestedMake = detectRequestedMake(lastUserMsg.content);
+    }
+    if (requestedMake) {
+      makeSearchResults = await searchInventoryForMake(requestedMake, 3);
+    }
+
+    let systemPrompt = SYSTEM_PROMPT;
+    if (requestedMake) {
+      if (makeSearchResults.length) {
+        systemPrompt +=
+          `\n\nLive search results for "${requestedMake}" (real, current, fetched just now):\n` +
+          JSON.stringify(
+            makeSearchResults.map((v) => ({
+              title: v.title,
+              price: v.price,
+              mileage: v.mileage,
+              isUsed: v.isUsed,
+              url: v.url,
+            }))
+          );
+      } else {
+        systemPrompt += `\n\nLive search results for "${requestedMake}": none found in current new or used inventory (checked just now).`;
+      }
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
 
@@ -244,7 +342,7 @@ exports.main = async (args) => {
         body: JSON.stringify({
           model: "claude-sonnet-5",
           max_tokens: 400,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: trimmed,
         }),
         signal: controller.signal,
@@ -281,13 +379,18 @@ exports.main = async (args) => {
       : null;
     const reply = (textBlock && textBlock.text) || "Sorry, I didn't catch that — mind rephrasing?";
 
-    // If Turbo's reply mentions a known inventory category link, pull a
-    // few real, current listings from that page so the front end can show
-    // photo preview cards. Best-effort — never blocks or breaks the reply.
+    // Prefer real make-specific search results (already fetched above) so the
+    // preview cards match what Turbo actually just told the visitor. Otherwise,
+    // if the reply mentions a known inventory category link, pull a few real,
+    // current listings from that page. Best-effort — never blocks the reply.
     let vehicles = [];
-    const matchedUrl = findInventoryUrlInText(reply);
-    if (matchedUrl) {
-      vehicles = await fetchVehiclePreviews(matchedUrl, 3);
+    if (makeSearchResults.length) {
+      vehicles = makeSearchResults;
+    } else {
+      const matchedUrl = findInventoryUrlInText(reply);
+      if (matchedUrl) {
+        vehicles = await fetchVehiclePreviews(matchedUrl, 3);
+      }
     }
 
     return {
