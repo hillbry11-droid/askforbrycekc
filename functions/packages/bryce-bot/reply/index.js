@@ -205,7 +205,9 @@ exports.main = async (args) => {
             body: JSON.stringify({ debug: true, find: args.find, found: false }),
           };
         }
-        const around = html.slice(Math.max(0, idx - 200), idx + 1800);
+        const before = args.before ? parseInt(args.before, 10) : 200;
+        const after = args.after ? parseInt(args.after, 10) : 1800;
+        const around = html.slice(Math.max(0, idx - before), idx + after);
         return {
           statusCode: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },
