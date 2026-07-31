@@ -162,6 +162,16 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
+  // Temporary debug: echo raw args for any GET request so we can see
+  // exactly what DO Functions hands us for query params.
+  if (args.__ow_method === "get" && !args.debug) {
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+      body: JSON.stringify({ debugEcho: true, args }),
+    };
+  }
+
   // Temporary debug branch: GET .../reply?debug=vehicles&url=<encoded category url>
   // Lets us test the scraper directly without going through Claude/chat.
   if (args.debug === "vehicles") {
