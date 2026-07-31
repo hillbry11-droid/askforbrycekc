@@ -195,6 +195,23 @@ exports.main = async (args) => {
       const html = await resp.text();
       htmlLength = html.length;
       htmlSnippet = html.slice(0, 400);
+
+      if (args.find) {
+        const idx = html.indexOf(String(args.find));
+        if (idx === -1) {
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+            body: JSON.stringify({ debug: true, find: args.find, found: false }),
+          };
+        }
+        const around = html.slice(Math.max(0, idx - 200), idx + 1800);
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+          body: JSON.stringify({ debug: true, find: args.find, found: true, idx, around }),
+        };
+      }
     } catch (fetchErr) {
       return {
         statusCode: 200,
