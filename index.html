@@ -398,6 +398,13 @@
   .chat-vehicle-info{padding:8px 10px 8px 0;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
   .chat-vehicle-title{font-size:.82rem;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .chat-vehicle-price{font-size:.82rem;color:var(--accent);font-weight:600}
+  .chat-generic-link{
+    align-self:flex-start;display:inline-flex;align-items:center;gap:6px;
+    background:var(--bg-2);border:1px solid var(--line);color:var(--accent-2);
+    font-size:.82rem;font-weight:600;padding:8px 14px;border-radius:999px;
+    text-decoration:none;transition:border-color .15s,background .15s;
+  }
+  .chat-generic-link:hover{border-color:var(--accent);background:var(--bg-3)}
   #chatForm{display:flex;border-top:1px solid var(--line)}
   #chatInput{
     flex:1;background:var(--bg-2);border:none;color:var(--text);
@@ -977,6 +984,18 @@
     body.scrollTop = body.scrollHeight;
   }
 
+  function addGenericLink(link){
+    if (!link || !link.url) return;
+    var a = document.createElement('a');
+    a.className = 'chat-generic-link';
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = (link.label || 'View inventory') + ' →';
+    body.appendChild(a);
+    body.scrollTop = body.scrollHeight;
+  }
+
   toggle.addEventListener('click', function(){
     win.classList.toggle('open');
     if (!opened) {
@@ -1007,6 +1026,7 @@
         typing.remove();
         addMsg('bot', data.reply);
         addVehicleCards(data.vehicles);
+        addGenericLink(data.link);
         history.push({ role: 'assistant', content: data.reply });
       })
       .catch(function(){

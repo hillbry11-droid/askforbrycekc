@@ -35,7 +35,7 @@ Live inventory search links (these are real, working links to Gary Crossley Ford
 - Transit / vans: https://www.garycrossleyford.com/inventory/new-vehicles/vehicle-type-Van%20-slash-%20Minivan/
 (For used versions of any model above, swap "new-vehicles" for "used-vehicles" in the URL.)
 
-When you recommend a category, include the exact link from the list above somewhere in your reply (on its own, as plain text/URL) — the system will automatically look up a few real current listings from that page, show them as photo preview cards under your message, AND strip the raw URL text back out of your reply automatically. So don't worry about how the link looks in your written reply — just include it naturally when relevant, and know the visitor will see a clean photo card instead of a raw link.
+Whenever you share a link from the list above — a specific model category OR the general "All new/used inventory" links — include the exact URL somewhere in your reply (on its own, as plain text/URL). The system automatically turns it into a clean photo card (for a specific model/make match) or a tidy labeled button (for the general browse-everything links), and strips the raw URL text back out of your written reply either way. So never worry about how a link looks in your written reply, and never describe or format it yourself (no markdown link syntax, no "click here") — just include the plain URL naturally when relevant, and know the visitor will always see a clean clickable card or button, never a raw pasted link.
 
 Important — this is primarily a Ford dealership, but the USED inventory regularly includes trade-ins of other makes (Toyota, Chevrolet, Tesla, Honda, etc.), so never assume or claim a non-Ford make is NOT in stock. If the visitor asks about a specific make/model, a "Live search results" block may be included below with real, current matches pulled straight from the site just now — if it's present, trust it completely and answer from it directly (say yes and share the real match, or say no if it's genuinely empty, don't hedge or guess). If no such block is included for their question, say you're not certain what's in stock for that make right now and point them to the "All used inventory" link so they can check, or offer to have Bryce look.
 
@@ -86,6 +86,24 @@ function findInventoryUrlInText(text) {
   if (!text) return null;
   for (const url of INVENTORY_URLS) {
     if (text.indexOf(url) !== -1) return url;
+  }
+  return null;
+}
+
+// The two fully-generic "browse everything" links — intentionally excluded
+// from photo-card scraping (see note above), but still real, clickable
+// links Turbo sometimes shares. When one shows up we still want a clean
+// look, so we turn it into a small labeled button instead of a raw pasted
+// URL in the chat bubble.
+const GENERIC_INVENTORY_LINKS = [
+  { url: "https://www.garycrossleyford.com/inventory/new-vehicles/", label: "Browse full new inventory" },
+  { url: "https://www.garycrossleyford.com/inventory/used-vehicles/", label: "Browse full used inventory" },
+];
+
+function findGenericLinkInText(text) {
+  if (!text) return null;
+  for (const link of GENERIC_INVENTORY_LINKS) {
+    if (text.indexOf(link.url) !== -1) return link;
   }
   return null;
 }
@@ -494,11 +512,20 @@ exports.main = async (args) => {
       }
     }
 
-    // When we're showing photo preview cards, strip any raw URL(s) out of
-    // the chat bubble text itself — the card below is already the link, so
-    // repeating it as a wall of plain-text URL just looks messy.
+    // If there's no specific vehicle match but the reply points to one of
+    // the generic "browse everything" links, surface it as a clean labeled
+    // button instead of a raw pasted URL.
+    let genericLink = null;
+    if (!vehicles.length) {
+      genericLink = findGenericLinkInText(reply);
+    }
+
+    // When we're showing a photo card or a generic link button, strip any
+    // raw URL(s) out of the chat bubble text itself — the card/button below
+    // is already the link, so repeating it as a wall of plain-text URL just
+    // looks messy.
     let cleanReply = reply;
-    if (vehicles.length) {
+    if (vehicles.length || genericLink) {
       cleanReply = cleanReply
         .replace(/https?:\/\/\S+/g, "")
         .replace(/[ \t]*[:\-–]\s*(?=\n|$)/g, "")
@@ -513,7 +540,7 @@ exports.main = async (args) => {
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
-      body: JSON.stringify({ reply: cleanReply, vehicles }),
+      body: JSON.stringify({ reply: cleanReply, vehicles, link: genericLink }),
     };
   } catch (err) {
     console.error(err);
