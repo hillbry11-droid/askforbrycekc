@@ -353,7 +353,7 @@
   }
   #chatToggle{
     width:96px;height:96px;border-radius:50%;border:none;cursor:pointer;
-    background:#3a2b1f;padding:0;overflow:hidden;position:relative;
+    background:#3a2b1f;padding:0;position:relative;
     box-shadow:0 8px 24px rgba(0,0,0,.4);
     display:flex;align-items:center;justify-content:center;
     transition:transform .2s, box-shadow .2s;
@@ -363,6 +363,14 @@
     object-fit:cover;display:block;border-radius:50%;
   }
   #chatToggle:hover{transform:scale(1.06);box-shadow:0 10px 28px rgba(0,0,0,.5)}
+  #chatBadge{
+    position:absolute;top:0px;right:2px;width:18px;height:18px;border-radius:50%;
+    background:#ff4d4f;border:2px solid var(--bg);z-index:2;
+    display:none;box-shadow:0 2px 8px rgba(0,0,0,.4);
+    animation:chatBadgePulse 1.6s ease-in-out infinite;
+  }
+  #chatBadge.show{display:block}
+  @keyframes chatBadgePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
   .chat-label{
     font-size:.72rem;font-weight:700;color:var(--text);
     background:var(--bg-3);border:1px solid var(--line);
@@ -896,8 +904,9 @@
 
 <!-- ---------- CHAT WIDGET ---------- -->
 <div id="chatWidget">
-  <button id="chatToggle" aria-label="Chat with Turbo"><video id="turboVideo" autoplay muted loop playsinline preload="auto" fetchpriority="high" poster="turbo-poster.jpg"><source src="turbo-loop.mp4" type="video/mp4" fetchpriority="high"><source src="turbo-loop.webm" type="video/webm"></video></button>
+  <button id="chatToggle" aria-label="Chat with Turbo"><video id="turboVideo" autoplay muted loop playsinline preload="auto" fetchpriority="high" poster="turbo-poster.jpg"><source src="turbo-loop.mp4" type="video/mp4" fetchpriority="high"><source src="turbo-loop.webm" type="video/webm"></video><span id="chatBadge" aria-hidden="true"></span></button>
   <div class="chat-label">Chat with Turbo</div>
+  <audio id="turboWoof" src="turbo-woof.mp3" preload="auto"></audio>
 </div>
 <div id="chatWindow">
   <div class="chat-head">
@@ -922,8 +931,27 @@
   var form = document.getElementById('chatForm');
   var input = document.getElementById('chatInput');
   var sendBtn = document.getElementById('chatSend');
+  var badge = document.getElementById('chatBadge');
+  var woof = document.getElementById('turboWoof');
   var history = [];
   var opened = false;
+
+  // Unlock audio playback on the first real user interaction, so the
+  // notification sound isn't blocked by browser autoplay policies later.
+  var audioUnlocked = false;
+  function unlockAudio(){
+    if (audioUnlocked || !woof) return;
+    audioUnlocked = true;
+    var vol = woof.volume;
+    woof.volume = 0;
+    woof.play().then(function(){
+      woof.pause();
+      woof.currentTime = 0;
+      woof.volume = vol;
+    }).catch(function(){ woof.volume = vol; });
+  }
+  document.addEventListener('click', unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { once: true });
 
   var turboVideo = document.getElementById('turboVideo');
   if (turboVideo) {
@@ -998,6 +1026,9 @@
 
   toggle.addEventListener('click', function(){
     win.classList.toggle('open');
+    if (win.classList.contains('open')) {
+      badge.classList.remove('show');
+    }
     if (!opened) {
       opened = true;
       addMsg('bot', "Woof! Hi, I'm Turbo! *tail wag* I'm here to help you experience the Crossley difference — ask me about inventory, the dealership, or leave your info and Bryce will follow up personally. How can I help you today?");
@@ -1051,6 +1082,10 @@
         addVehicleCards(data.vehicles);
         addGenericLink(data.link);
         history.push({ role: 'assistant', content: data.reply });
+        if (!win.classList.contains('open')) {
+          badge.classList.add('show');
+          if (woof) { woof.currentTime = 0; woof.play().catch(function(){}); }
+        }
       })
       .catch(function(){
         typing.remove();
