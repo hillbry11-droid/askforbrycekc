@@ -38,6 +38,20 @@ exports.main = async (args) => {
 
   try {
     const debugVal = Array.isArray(args.debug) ? args.debug[0] : args.debug;
+    if (debugVal === "models") {
+      const r = await fetch("https://api.anthropic.com/v1/models", {
+        headers: {
+          "x-api-key": process.env.ANTHROPIC_API_KEY || "MISSING",
+          "anthropic-version": "2023-06-01",
+        },
+      });
+      const text = await r.text();
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+        body: JSON.stringify({ status: r.status, body: text.slice(0, 1500) }),
+      };
+    }
     if (debugVal === "net" || debugVal === "net2") {
       const target = debugVal === "net2" ? "https://api.anthropic.com/v1/messages" : "https://example.com";
       const started = Date.now();
