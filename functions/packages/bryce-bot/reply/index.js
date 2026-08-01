@@ -472,6 +472,26 @@ exports.main = async (args) => {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
+  // Temporary debug hook to verify the CDK/ADF FormSubmit delivery path
+  // end-to-end before relying on it for real leads. Placed ahead of the
+  // Origin/Referer guard on purpose — it's meant to be hit by typing the
+  // URL directly into a browser (no Origin/Referer sent that way), it never
+  // touches the Anthropic API, and the token makes it unguessable. Remove
+  // this whole block once CDK delivery is confirmed working.
+  if (args.debug === "cdktest-9f2b7q") {
+    const result = await notifyAdfLead({
+      name: "Test Lead",
+      phone: "(816) 555-0100",
+      email: "test@example.com",
+      comments: "This is a test ADF submission from askforbrycekc.com debug hook.",
+    });
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+      body: JSON.stringify(result),
+    };
+  }
+
   // Basic abuse guard: reject anything that isn't a browser request
   // actually coming from the site — cheap to check, invisible to real
   // visitors, but stops the vast majority of scripted/automated abuse that
@@ -488,22 +508,6 @@ exports.main = async (args) => {
   }
 
   try {
-    // Temporary debug hook to verify the CDK/ADF FormSubmit delivery path
-    // end-to-end before relying on it for real leads. Remove once confirmed.
-    if (args.debug === "cdktest") {
-      const result = await notifyAdfLead({
-        name: "Test Lead",
-        phone: "(816) 555-0100",
-        email: "test@example.com",
-        comments: "This is a test ADF submission from askforbrycekc.com debug hook.",
-      });
-      return {
-        statusCode: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-        body: JSON.stringify(result),
-      };
-    }
-
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
       return {
