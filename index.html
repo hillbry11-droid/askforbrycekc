@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bryce Hill | Ford Salesman in Kansas City, MO — Gary Crossley Ford</title>
 <meta name="description" content="Buying a Ford in Kansas City? Work with Bryce Hill, a Ford salesman at Gary Crossley Ford. Browse new F-150, Bronco, Maverick, Explorer, and Mustang inventory, text for a quote, and see real customer reviews.">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XY7RLSYR4R"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XY7RLSYR4R');
+</script>
 <link rel="preload" as="video" href="turbo-loop.mp4" type="video/mp4">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -899,6 +907,7 @@
     })
     .then(function(r){ return r.ok ? r.json() : Promise.reject(r); })
     .then(function(){
+      if (typeof gtag === 'function') gtag('event', 'generate_lead', { form: 'contact_form' });
       btn.textContent = 'Sent!';
       status.textContent = "Thanks — I'll be in touch shortly.";
       status.style.display = 'block';
@@ -1049,6 +1058,12 @@
     body.scrollTop = body.scrollHeight;
   }
 
+  function track(name, params){
+    if (typeof gtag === 'function') gtag('event', name, params || {});
+  }
+  var LEAD_PHONE_RE = /(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/;
+  var LEAD_EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
   toggle.addEventListener('click', function(){
     win.classList.toggle('open');
     if (win.classList.contains('open')) {
@@ -1056,6 +1071,7 @@
     }
     if (!opened) {
       opened = true;
+      track('chat_open');
       addMsg('bot', "Woof! Hi, I'm Turbo! *tail wag* I'm here to help you experience the Crossley difference — ask me about inventory, the dealership, or leave your info and Bryce will follow up personally. How can I help you today?");
     }
   });
@@ -1083,6 +1099,10 @@
 
     addMsg('user', text);
     history.push({ role: 'user', content: text });
+    track('chat_message_sent');
+    if (LEAD_PHONE_RE.test(text) || LEAD_EMAIL_RE.test(text)) {
+      track('chat_lead_detected');
+    }
     input.value = '';
     sendBtn.disabled = true;
     var typing = addMsg('bot', 'Typing...');
