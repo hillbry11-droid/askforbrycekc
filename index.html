@@ -877,6 +877,50 @@
   var btn = document.getElementById('leadFormBtn');
   var status = document.getElementById('leadFormStatus');
   var sending = false;
+
+  // CDK/DMS ADF integration: alongside the human-readable email to Bryce,
+  // also send a machine-readable ADF XML lead to the dealership's CDK
+  // routing address so it auto-ingests into the DMS.
+  var CDK_ROUTING_EMAIL = 'sales@garycrossleyford.edealerhub.com';
+  function xmlEscape(s){
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+  function splitName(full){
+    var parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { first: 'Website', last: 'Visitor' };
+    if (parts.length === 1) return { first: parts[0], last: '' };
+    return { first: parts[0], last: parts.slice(1).join(' ') };
+  }
+  function buildAdfXml(data){
+    var n = splitName(data.Name);
+    var comments = ((data['Looking for'] ? 'Looking for: ' + data['Looking for'] + '. ' : '') + (data.Message || '')).trim();
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<adf>\n  <prospect>\n' +
+      '    <id sequence="1" source="askforbrycekc.com">' + Date.now() + '</id>\n' +
+      '    <requestdate>' + new Date().toISOString() + '</requestdate>\n' +
+      '    <customer>\n      <contact>\n' +
+      '        <name part="first">' + xmlEscape(n.first) + '</name>\n' +
+      '        <name part="last">' + xmlEscape(n.last) + '</name>\n' +
+      (data.Phone ? '        <phone type="voice" time="day">' + xmlEscape(data.Phone) + '</phone>\n' : '') +
+      (data.Email ? '        <email>' + xmlEscape(data.Email) + '</email>\n' : '') +
+      '      </contact>\n      <comments>' + xmlEscape(comments) + '</comments>\n    </customer>\n' +
+      '    <vendor>\n      <vendorname>Gary Crossley Ford</vendorname>\n    </vendor>\n' +
+      '    <provider>\n      <name>askforbrycekc.com — Contact form</name>\n      <email>Bhill@garycrossleyford.com</email>\n    </provider>\n' +
+      '  </prospect>\n</adf>';
+  }
+  function sendAdfLead(data){
+    try {
+      var xml = buildAdfXml(data);
+      fetch('https://formsubmit.co/ajax/' + CDK_ROUTING_EMAIL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _subject: 'ADF', _template: 'basic', adf: xml })
+      }).catch(function(){ /* best-effort — human email to Bryce is the primary path */ });
+    } catch (e) { /* best-effort */ }
+  }
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
     if (sending) return;
@@ -884,10 +928,12 @@
     btn.disabled = true;
     btn.textContent = 'Sending...';
     status.style.display = 'none';
+    var formData = Object.fromEntries(new FormData(form));
+    sendAdfLead(formData);
     fetch('https://formsubmit.co/ajax/Bhill@garycrossleyford.com', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(new FormData(form)))
+      body: JSON.stringify(formData)
     })
     .then(function(r){ return r.ok ? r.json() : Promise.reject(r); })
     .then(function(){

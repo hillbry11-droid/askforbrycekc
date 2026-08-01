@@ -355,6 +355,99 @@ async function notifyLead(contact, latestMessageText, transcript) {
   }
 }
 
+// CDK/DMS ADF (Auto-lead Data Format) integration. Gary Crossley Ford's DMS
+// ingests leads automatically from XML emailed to a dealer-provided routing
+// address — this builds that XML and sends it as a second, parallel
+// notification alongside the human-readable email to Bhill.
+const CDK_ROUTING_EMAIL = "sales@garycrossleyford.edealerhub.com";
+
+function xmlEscape(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function splitName(fullName) {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "Website", last: "Visitor" };
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
+function buildAdfXml({ name, phone, email, comments, vehicle }) {
+  const { first, last } = splitName(name);
+  const now = new Date().toISOString();
+  const vehicleBlock = vehicle
+    ? `    <vehicle interest="buy" status="${vehicle.status === "new" ? "new" : "used"}">
+      <year>${xmlEscape(vehicle.year || "")}</year>
+      <make>${xmlEscape(vehicle.make || "")}</make>
+      <model>${xmlEscape(vehicle.model || "")}</model>
+    </vehicle>
+`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<adf>
+  <prospect>
+    <id sequence="1" source="askforbrycekc.com">${Date.now()}</id>
+    <requestdate>${now}</requestdate>
+${vehicleBlock}    <customer>
+      <contact>
+        <name part="first">${xmlEscape(first)}</name>
+        <name part="last">${xmlEscape(last)}</name>
+        ${phone ? `<phone type="voice" time="day">${xmlEscape(phone)}</phone>` : ""}
+        ${email ? `<email>${xmlEscape(email)}</email>` : ""}
+      </contact>
+      <comments>${xmlEscape(comments || "")}</comments>
+    </customer>
+    <vendor>
+      <vendorname>Gary Crossley Ford</vendorname>
+    </vendor>
+    <provider>
+      <name>askforbrycekc.com — Turbo chat</name>
+      <email>Bhill@garycrossleyford.com</email>
+    </provider>
+  </prospect>
+</adf>`;
+}
+
+// Fires a second, separate notification carrying the raw ADF XML to the
+// dealership's CDK routing address, so leads land in the DMS automatically
+// instead of only in Bryce's inbox. Uses the same FormSubmit infrastructure
+// already proven reliable for the Bhill notification (per explicit choice
+// to reuse it rather than stand up a dedicated transactional email service).
+// NOTE: FormSubmit requires a one-time confirmation click for any brand-new
+// destination address before it will deliver — see debug=cdktest below.
+async function notifyAdfLead({ name, phone, email, comments, vehicle }) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const xml = buildAdfXml({ name, phone, email, comments, vehicle });
+    const resp = await fetch(`https://formsubmit.co/ajax/${CDK_ROUTING_EMAIL}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Origin: "https://askforbrycekc.com",
+        Referer: "https://askforbrycekc.com/",
+      },
+      body: JSON.stringify({
+        _subject: "ADF",
+        _template: "basic",
+        adf: xml,
+      }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
+    const bodyText = await resp.text().catch(() => "");
+    return { ok: resp.ok, status: resp.status, body: bodyText.slice(0, 500), xml };
+  } catch (err) {
+    console.error("ADF/CDK lead notification failed:", err);
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+}
+
 exports.main = async (args) => {
   // This endpoint is only meant to be called from the chat widget on
   // askforbrycekc.com (apex or "www." — both resolve to the same site).
@@ -395,6 +488,22 @@ exports.main = async (args) => {
   }
 
   try {
+    // Temporary debug hook to verify the CDK/ADF FormSubmit delivery path
+    // end-to-end before relying on it for real leads. Remove once confirmed.
+    if (args.debug === "cdktest") {
+      const result = await notifyAdfLead({
+        name: "Test Lead",
+        phone: "(816) 555-0100",
+        email: "test@example.com",
+        comments: "This is a test ADF submission from askforbrycekc.com debug hook.",
+      });
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+        body: JSON.stringify(result),
+      };
+    }
+
     const messages = Array.isArray(args.messages) ? args.messages : [];
     if (!messages.length) {
       return {
@@ -429,11 +538,20 @@ exports.main = async (args) => {
     // can freeze/recycle right after the response is sent, which would
     // silently kill a true fire-and-forget request mid-flight.
     let leadNotifyPromise = Promise.resolve();
+    let adfNotifyPromise = Promise.resolve();
     const latestUserForLead = [...trimmed].reverse().find((m) => m.role === "user");
     if (latestUserForLead) {
       const contact = detectLeadContact(latestUserForLead.content);
       if (contact) {
         leadNotifyPromise = notifyLead(contact, latestUserForLead.content, fullTranscript);
+        adfNotifyPromise = notifyAdfLead({
+          name: "Website Visitor",
+          phone: contact.phone,
+          email: contact.email,
+          comments:
+            "Lead from Turbo chat widget on askforbrycekc.com. Message: " +
+            latestUserForLead.content,
+        });
       }
     }
 
@@ -560,6 +678,7 @@ exports.main = async (args) => {
     }
 
     await leadNotifyPromise;
+    await adfNotifyPromise;
 
     return {
       statusCode: 200,
