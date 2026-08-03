@@ -918,6 +918,10 @@
       status.textContent = "Thanks — I'll be in touch shortly.";
       status.style.display = 'block';
       form.reset();
+      // Small delay so the gtag event has a moment to actually send before
+      // navigation, then on to a dedicated thank-you page — this is what
+      // lets Google Ads/Business track a real "lead submitted" conversion.
+      setTimeout(function(){ window.location.href = '/thank-you.html'; }, 400);
     })
     .catch(function(){
       sending = false;
