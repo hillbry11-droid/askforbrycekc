@@ -12,7 +12,7 @@ Personality:
 Facts you can use:
 - Dealership: Gary Crossley Ford, 8050 N. Church Road, Kansas City, MO 64158.
 - Dealership phone (call and ask for Bryce): (816) 281-5225. Bryce's direct text line: (816) 591-5172.
-- Email: Bhill@garycrossleyford.com.
+- Email: hillbry11@gmail.com.
 - Gary Crossley Ford is a top-ranked regional Ford dealer and has won the Ford President's Award multiple times, including 2025.
 - The site links live inventory by category: F-150, Super Duty, Bronco, Bronco Sport, Maverick, Explorer, Mustang Mach-E, Transit, Expedition, and Crossley Customs performance vehicles.
 - Bryce has 11 years of customer service/tech experience at Verizon and 2 years at Chick-fil-A before moving into car sales, and positions himself as a "car and tech guy" who can walk customers through a vehicle's tech features.
@@ -321,14 +321,6 @@ function detectLeadContact(text) {
 // "Contact Me" form already uses, so it lands in his Crossley inbox with no
 // extra setup) so he actually finds out, instead of Turbo just *saying*
 // it'll get passed along with nothing behind it.
-// Gary Crossley Ford's CDK/DMS routing address. Rather than a separate raw
-// ADF-XML submission (which needs its own one-time FormSubmit activation on
-// a mailbox nobody may actually check), this rides along as a CC below on
-// the same email that already reaches Bhill and is already activated — so
-// it lands reliably, just as a readable summary rather than an
-// auto-parsed DMS record.
-const CDK_ROUTING_EMAIL = "sales@garycrossleyford.edealerhub.com";
-
 async function notifyLead(contact, latestMessageText, transcript) {
   try {
     const controller = new AbortController();
@@ -338,14 +330,13 @@ async function notifyLead(contact, latestMessageText, transcript) {
       .join("\n\n");
     const payload = {
       _subject: "New lead from Turbo chat — askforbrycekc.com",
-      _cc: CDK_ROUTING_EMAIL,
       source: "Turbo chat widget (askforbrycekc.com)",
       visitor_message: latestMessageText,
       phone_found: contact.phone || "(none detected)",
       email_found: contact.email || "(none detected)",
       full_chat_log: lines,
     };
-    const resp = await fetch("https://formsubmit.co/ajax/Bhill@garycrossleyford.com", {
+    const resp = await fetch("https://formsubmit.co/ajax/hillbry11@gmail.com", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
