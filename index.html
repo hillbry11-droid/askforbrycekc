@@ -899,12 +899,6 @@
   var btn = document.getElementById('leadFormBtn');
   var status = document.getElementById('leadFormStatus');
   var sending = false;
-
-  // CDK/DMS routing address: CC'd on the same email that already reaches
-  // Bhill (and is already activated with FormSubmit), so it lands reliably
-  // as a readable summary in the dealership's CDK inbox too.
-  var CDK_ROUTING_EMAIL = 'sales@garycrossleyford.edealerhub.com';
-
   form.addEventListener('submit', function(e){
     e.preventDefault();
     if (sending) return;
@@ -913,8 +907,7 @@
     btn.textContent = 'Sending...';
     status.style.display = 'none';
     var formData = Object.fromEntries(new FormData(form));
-    formData._cc = CDK_ROUTING_EMAIL;
-    fetch('https://formsubmit.co/ajax/Bhill@garycrossleyford.com', {
+    fetch('https://formsubmit.co/ajax/hillbry11@gmail.com', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -1159,23 +1152,7 @@
 })();
 </script>
 
-<!-- Default Statcounter code for Bryce Hill
-https://askforbrycekc.com/ -->
-<script type="text/javascript">
-var sc_project=13339100;
-var sc_invisible=1;
-var sc_security="e2124fc9";
-</script>
-<script type="text/javascript"
-src="https://www.statcounter.com/counter/counter.js"
-async></script>
-<noscript><div class="statcounter"><a title="website
-statistics" href="https://statcounter.com/"
-target="_blank"><img class="statcounter"
-src="https://c.statcounter.com/13339100/0/e2124fc9/1/"
-alt="website statistics"
-referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
-<!-- End of Statcounter Code -->
+
 
 </body>
 </html>
